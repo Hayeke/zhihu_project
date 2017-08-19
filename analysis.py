@@ -28,18 +28,20 @@ def df_topics_tonodes(df):
 
 def topis_mark_init():
     """
-    设置初始化的话题类型字典；默认未分类类型为99
+    设置初始化的话题类型字典；默认未分类类型为8:"未分类"
     """
-    global Topics_notMarked_Url
     df = read_mongodb_df(DB, Collections1).drop_duplicates("question_id", keep="last").reset_index(drop=True)
     topics_freq = df_topics_tonodes(df)
-    topics_freq["类型"] = 99
+    topics_freq.to_csv(Topics_Freq_Url, index=None)
+    topics_freq["类型"] = 8
     topics_mark = topics_freq[["topic_name","类型"]].reset_index(drop=True)
-    # print(topics_mark,type(Topics_notMarked_Url))
-    # pd.DataFrame.to_csv(Topics_notMarked_Url,topics_mark)
+    topics_mark.to_csv(Topics_notMarked_Url,index = None)
     return topics_mark
 
 def label_toclass(topics_freq):
+    """
+    根据话题类型字典，将获得话题进行类型标记
+    """
     topics_freq["class"] = topics_freq["topic_name"].map(topics_mark_dict)
     topics_freq = topics_freq.dropna().rename(columns={"topic_name": "label"}).sort_values("class").reset_index(
         drop=True)
@@ -95,9 +97,6 @@ def trans_time(timestamp):
 
 # 作图需要类型名称，分类id转名称，
 def class_tolabel(answers_topic_class):
-    class_mark_dict = {"class": [0, 1, 2, 3, 4, 5, 6, 7,99],
-                       "name": ["企业/品牌", "形式/类型", "观点/认知", "地理区域", "相关人物", "机构领域", "人群需求", "角色职业","未分类"]}
-    class_mark_dict = dict(zip(class_mark_dict["class"], class_mark_dict["name"]))
     answers_topic_class["question_class"] = answers_topic_class["question_class"].map(class_mark_dict)
     answer_all = answers_topic_class.groupby(["question_class", "created_time"]).size().reset_index(
         name="count").sort_values(by=["question_class", "created_time"])
@@ -105,21 +104,6 @@ def class_tolabel(answers_topic_class):
 
 
 # 手工标记数据类别，将话题分类，类别为0-7的分类变量；0-7未指定类型；
-
-
-
-DB = "传销"
-Collections1 = "Topics"
-Collections2 = "Answers"
-Topics_Marked_Url = "Topics_Marked/{}.csv".format(DB)
-Topics_notMarked_Url = "Topics_notMarked/{}.csv".format(DB)
-Gexf_File_Url = "output/{}.gexf".format(DB)
-Time_File_Url = "output/{}.txt".format(DB)
-
-
-# topics_mark = pd.read_csv(Topics_Marked_Url, encoding="gb2312",engine='python')  ##人工进行类型标注
-topics_mark = topis_mark_init() ##未分类的话题，默认类型99
-topics_mark_dict = dict(zip(topics_mark["topic_name"], topics_mark["类型"]))
 
 
 def gexf_output():
@@ -183,14 +167,9 @@ def answertype_bytime_output():
     以下为各类型回答按时间累计分析 
     '''
     # 话题数据
-    topics_df = read_mongodb_df(DB, Collections1)[["question_id", "topics"]].drop_duplicates("question_id",
-                                                                                             keep="last").reset_index(
-        drop=True)  ##获取数据有重复，要去重
+    topics_df = read_mongodb_df(DB, Collections1)[["question_id", "topics"]].drop_duplicates("question_id",keep="last").reset_index(drop=True)  ##获取数据有重复，要去重
     # 回答数据
-    answers_df = read_mongodb_df(DB, Collections2)[
-        ["answer_id", "author", "created_time", "question_id", "voteup_count"]].drop_duplicates("answer_id",
-                                                                                                keep="last").reset_index(
-        drop=True)  ##获取数据有重复，要去重
+    answers_df = read_mongodb_df(DB, Collections2)[["answer_id", "author", "created_time", "question_id", "voteup_count"]].drop_duplicates("answer_id",keep="last").reset_index(drop=True)  ##获取数据有重复，要去重
     ##数据合并
     answers_df = pd.merge(topics_df, answers_df, how="right", on="question_id")
     # 话题展开
@@ -216,11 +195,29 @@ def answertype_bytime_output():
         f.close()
 
 
+
+DB = "Tencent"
+Collections1 = "Topics"
+Collections2 = "Answers"
+Topics_Marked_Url = "Topics_Marks/Havemarked/{}.csv".format(DB)
+Topics_notMarked_Url = "Topics_Marks/Notmark/{}.csv".format(DB)
+Topics_Freq_Url = "Topics_Marks/Topic_freq/{}.csv".format(DB)
+Gexf_File_Url = "../caixin_works/data/{}.gexf".format(DB)
+Time_File_Url = "output/{}.txt".format(DB)
+
+class_mark_dict = {"class": [0, 1, 2, 3, 4, 5, 6, 7, 8],
+                   "name": ["企业/品牌", "形式/类型", "观点/认知", "地理区域", "相关人物", "机构领域", "人群需求", "角色职业", "未分类"]}
+class_mark_dict = dict(zip(class_mark_dict["class"], class_mark_dict["name"]))
+
+# topics_mark = pd.read_csv(Topics_Marked_Url, encoding="gb2312",engine='python')  ##人工进行类型标注
+topics_mark = topis_mark_init() ##所有话题类型字典
+topics_mark = topics_mark[1:300]
+topics_mark_dict = dict(zip(topics_mark["topic_name"], topics_mark["类型"]))
+
+
 def main():
-    temp = topis_mark_init()
-    print(temp,type(temp))
-    pd.DataFrame.to_csv(Topics_notMarked_Url, temp)
-    # gexf_output()
+    topis_mark_init()
+    gexf_output()
     # answertype_bytime_output()
 
 
