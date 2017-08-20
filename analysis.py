@@ -49,6 +49,30 @@ def label_toclass(topics_freq):
     return topics_freq
 
 
+def df_topics_tolist(db,collection = "Topics"):
+    df = read_mongodb_df(db,collection)
+    topics_list = []
+    for i in range(0, len(df)):
+        topics_list.append([x["topic_name"] for x in df["topics"][i]])
+    return topics_list
+
+def df_topics_onehot(df):
+    topics_list = []
+    for i in range(0, len(df)):
+        topics_list.append([x["topic_name"] for x in df["topics"][i]])
+        # df.iloc[i]["topics_list"] = [x["topic_name"] for x in df["topics"][i]]
+    df["topics_list"] = topics_list
+
+    topics = set()
+    for i in topics_list:
+        topics.update(topic  for topic in i)
+    topics = sorted(topics)
+
+    for topic in topics:
+        df[topic] = [topic in  item   for item in df["topics_list"]]
+    return df
+
+
 ##从Topics数据结构生成问题话题的两两组合数据，作为edge数据
 def df_topics_tolinks(df):
     question_topic = []
@@ -117,9 +141,6 @@ def gexf_output():
     topics_freq = df_topics_tonodes(df)
     # 根据话题类型标记字典，标记话题类型
     topics_freq = label_toclass(topics_freq)
-    # print(topics_freq,type(topics_freq))
-    # pd.DataFrame.to_csv("output/nodes.csv",topics_freq)
-
     # 问题的话题是生成组合，构造边数据
     links = df_topics_tolinks(df)
     # 根据筛选的分类目录整理边连接关系，去除不在分类的话题
@@ -129,8 +150,7 @@ def gexf_output():
     label_id = dict(zip(topics_freq["label"], topics_freq.index))
     links["Source_id"] = links["Source"].map(label_id)
     links["Target_id"] = links["Target"].map(label_id)
-    # print(links,type(links))
-    # pd.DataFrame.to_csv("output/links.csv",links)
+
     with open(Gexf_File_Url, "w", encoding="utf-8") as  f:
         nodes_txt = ""
         for i in range(0, len(topics_freq)):
@@ -138,8 +158,10 @@ def gexf_output():
             str1 = "{}".format(topics_freq.iloc[i]["label"])
             str2 = "{}".format(int(topics_freq.iloc[i]["class"]))
             str3 = "{}".format(topics_freq.iloc[i]["size_log2"])
+            str4 = "{}".format(topics_freq.iloc[i]["size"])
             p = "<node id= " + "\"" + str0 + "\"" + " " + "label=" + "\"" + str1 + "\"" + " >\n" \
-                + "<attvalues>" + '<attvalue for ="modularity_class" ' + " " + "value = " + "\"" + str2 + "\"" + "></attvalue ></attvalues>\n" \
+                + "<attvalues>" + '<attvalue for ="modularity_class" ' + " " + "value = " + "\"" + str2 + "\"" + "></attvalue >\n" \
+                + '<attvalue for ="1" ' + " " + "value = " + "\"" + str4 + "\"" + "></attvalue ></attvalues>\n" \
                 + "<viz:size value =" + "\"" + str3 + "\"" + "> </viz:size>\n" + "</node> \n"
             nodes_txt = nodes_txt + p
         links_txt = ""
@@ -147,13 +169,14 @@ def gexf_output():
             edge_id = str(i)
             str1 = "{}".format(links.iloc[i]["Source_id"])
             str2 = "{}".format(links.iloc[i]["Target_id"])
-            str3 = "{}".format(links.iloc[i]["weight"])
+            str3 = "{}".format(int(links.iloc[i]["weight"]))
             p = '<edge id= ' + "\"" + edge_id + "\"" + " " + "source=" + "\"" + str1 + "\"" + " " + "target =" + "\"" + str2 + "\"" + " " + "weight = " + "\"" + str3 + "\"" + "></edge >\n"
             links_txt = links_txt + p
         head_txt = '''<?xml version="1.0" encoding="UTF-8"?><gexf xmlns="http://www.gexf.net/1.2draft" version="1.2" xmlns:viz="http://www.gexf.net/1.2draft/viz" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.gexf.net/1.2draft http://www.gexf.net/1.2draft/gexf.xsd">
     <graph defaultedgetype="undirected" mode="static">
       <attributes class="node" mode="static">
         <attribute id="modularity_class" title="Modularity Class" type="integer"></attribute>
+        <attribute id="1" title="Size" type="integer"></attribute>
       </attributes>
       <nodes>'''
         all = head_txt + nodes_txt + "</nodes>\n" + "<edges>" + links_txt + "</edges>\n</graph>\n</gexf>"
@@ -196,7 +219,7 @@ def answertype_bytime_output():
 
 
 
-DB = "Tencent"
+DB = "Baidu"
 Collections1 = "Topics"
 Collections2 = "Answers"
 Topics_Marked_Url = "Topics_Marks/Havemarked/{}.csv".format(DB)
@@ -211,15 +234,16 @@ class_mark_dict = dict(zip(class_mark_dict["class"], class_mark_dict["name"]))
 
 # topics_mark = pd.read_csv(Topics_Marked_Url, encoding="gb2312",engine='python')  ##人工进行类型标注
 topics_mark = topis_mark_init() ##所有话题类型字典
-topics_mark = topics_mark[1:300]
+topics_mark = topics_mark[1:100]
 topics_mark_dict = dict(zip(topics_mark["topic_name"], topics_mark["类型"]))
 
 
 def main():
-    topis_mark_init()
-    gexf_output()
+    # topis_mark_init()
+    # gexf_output()
     # answertype_bytime_output()
-
-
+    df = read_mongodb_df("Baidu","Topics")
+    temp = df_topics_onehot(df)
+    print(temp)
 if __name__ == "__main__":
     main()
